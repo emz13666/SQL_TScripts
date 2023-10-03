@@ -24,12 +24,13 @@ declare @filesDiff table (
  isFile bit
 );
 
--- Получаем из списка полных бэкапов последнюю
+-- Получаем из списка полных бэкапов последний 
 set @sql = 'exec master.sys.xp_dirtree ''' + @folderFull + ''' , 0, 1;';
 insert into @filesFull exec sp_executesql @sql;
 select TOP 1 @fileNameFull = file__Name from @filesFull order by file__Name desc
 -- select @fileNameFull
 
+-- Получаем из списка разностных бэкапов последний 
 set @sql = 'exec master.sys.xp_dirtree ''' + @folderDiff + ''' , 0, 1;';
 insert into @filesDiff exec sp_executesql @sql;
 select TOP 1 @fileNameDiff = file__Name from @filesDiff order by file__Name desc;
@@ -126,8 +127,8 @@ insert into @headers exec('restore headeronly from disk = '''+ @folderDiff + '\'
 --select * from @headers;
 select @CheckpointLSN = CheckpointLSN, @FullBackupDateTime = BackupStartDate from @headers where Seq=1;
 select @DatabaseBackupLSN = DatabaseBackupLSN, @DiffBackupDateTime = BackupStartDate from @headers where Seq=2;
-select @CheckpointLSN as CheckpointLSN, @DatabaseBackupLSN as DatabaseBackupLSN,  @FullBackupDateTime as FullBackupDateTime, 
-       @DiffBackupDateTime as DiffBackupDateTime, @lastRestoredDateTime as lastRestoredDateTime;
+-- select @CheckpointLSN as CheckpointLSN, @DatabaseBackupLSN as DatabaseBackupLSN,  @FullBackupDateTime as FullBackupDateTime,
+--         @DiffBackupDateTime as DiffBackupDateTime, @lastRestoredDateTime as lastRestoredDateTime;
 
 -- проверяем, восстанавливали ли полную копию. Если нет - восстанавливаем.
 IF @lastRestoredDateTime < @FullBackupDateTime
@@ -148,7 +149,7 @@ IF @lastRestoredDateTime < @FullBackupDateTime
   END;
 
 -- Проверяем, соответствуют ли разностная копия и полная копия (иначе не восстановится, будет ошибка)
--- И проверяем дату последнего восстановления - может, мы его уже восстановили прошлый раз
+-- И проверяем дату последнего восстановления - может, мы эту копию уже восстановили 
 IF (@CheckpointLSN = @DatabaseBackupLSN AND @DiffBackupDateTime > @lastRestoredDateTime)
     BEGIN
 	    -- Загружаем разностный бэкап 
