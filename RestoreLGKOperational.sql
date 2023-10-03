@@ -132,7 +132,7 @@ select @CheckpointLSN as CheckpointLSN, @DatabaseBackupLSN as DatabaseBackupLSN,
 -- проверяем, восстанавливали ли полную копию. Если нет - восстанавливаем.
 IF @lastRestoredDateTime < @FullBackupDateTime
   BEGIN
-	-- Загружаем полный бэкап
+  -- Загружаем полный бэкап
 	SET @sql = 
 	N'RESTORE DATABASE [LGKOperational]
 	FROM DISK = N''' + @folderFull + '\' + @fileNameFull + ''' 
@@ -142,7 +142,7 @@ IF @lastRestoredDateTime < @FullBackupDateTime
 	REPLACE,
 	STATS = 5';
 
-    -- Выводим и выполняем полученную инструкцию
+       -- Выводим и выполняем полученную инструкцию
 	PRINT @sql;
 	EXEC sp_executesql @sql;
   END;
@@ -151,7 +151,7 @@ IF @lastRestoredDateTime < @FullBackupDateTime
 -- И проверяем дату последнего восстановления - может, мы его уже восстановили прошлый раз
 IF (@CheckpointLSN = @DatabaseBackupLSN AND @DiffBackupDateTime > @lastRestoredDateTime)
     BEGIN
-	    -- Çàãðóæàåì ðàçíîñòíûé áýêàï 
+	    -- Загружаем разностный бэкап 
 		set @sql = 
 			N'RESTORE DATABASE LGKOperational 
 			FROM DISK = ''' + @folderDiff + '\' + @fileNameDiff + '''
@@ -160,7 +160,7 @@ IF (@CheckpointLSN = @DatabaseBackupLSN AND @DiffBackupDateTime > @lastRestoredD
 			NORECOVERY,
 			STATS = 5';
 			
-			-- Âûâîäèì è âûïîëíÿåì ïîëó÷åííóþ èíñòðóêöèþ
+              -- Выводим и выполняем полученную инструкцию
 			PRINT @sql;	
 			EXEC sp_executesql @sql
 
