@@ -1,15 +1,16 @@
 use master;
 
-declare @folderFull nvarchar(255) = 'E:\D6-backup\D6-DB\LGKOperational\Full'
-declare @folderDiff nvarchar(255) = 'E:\D6-backup\D6-DB\LGKOperational\Minutly'
+-- объявляем переменные
+declare @folderFull nvarchar(255) = 'E:\D6-backup\D6-DB\LGKOperational\Full';
+declare @folderDiff nvarchar(255) = 'E:\D6-backup\D6-DB\LGKOperational\Minutly';
 declare @sql nvarchar(max);
-declare @fileNameFull nvarchar(255);
+declare @fileNameFull nvarchar(255); -- имя файла полной резервной копии
 declare @fileNameDiff nvarchar(255);
 declare @lastRestoredDateTime datetime;
 declare @FullBackupDateTime datetime;
 declare @DiffBackupDateTime datetime;
-declare @CheckpointLSN numeric(25,0) -- ��� ������������� ������ �����
-declare @DatabaseBackupLSN numeric(25,0) -- ��� ������������� ����. �����, ������ ��������� � ������
+declare @CheckpointLSN numeric(25,0) -- Это идентификатор полной копии
+declare @DatabaseBackupLSN numeric(25,0) -- Это идентификатор дифф. копии, должен совпадать с полной
 
 declare @filesFull table (
  file__Name nvarchar(255),
@@ -23,17 +24,18 @@ declare @filesDiff table (
  isFile bit
 );
 
+-- Получаем из списка полных бэкапов последнюю
 set @sql = 'exec master.sys.xp_dirtree ''' + @folderFull + ''' , 0, 1;';
 insert into @filesFull exec sp_executesql @sql;
 select TOP 1 @fileNameFull = file__Name from @filesFull order by file__Name desc
---select @fileNameFull
+-- select @fileNameFull
 
 set @sql = 'exec master.sys.xp_dirtree ''' + @folderDiff + ''' , 0, 1;';
 insert into @filesDiff exec sp_executesql @sql;
 select TOP 1 @fileNameDiff = file__Name from @filesDiff order by file__Name desc;
 --select @fileNameDiff;
 
-
+-- Получаем дату-время последнего восстановления базы LGKOperational
 WITH LastRestores AS
 (
 SELECT
@@ -51,9 +53,9 @@ FROM [LastRestores]
 Where
 [DatabaseName] = 'LGKOperational' and [RowNum] = 1;
 
---select @lastRestoredDateTime;
+-- select @lastRestoredDateTime;
 
-
+-- Объявляем структуру для результата выполнения restore headeronly
 declare @headers table 
 ( 
     BackupName varchar(256),
@@ -118,6 +120,7 @@ declare @headers table
     Seq int NOT NULL identity(1,1)
 ); 
 
+-- Получаем идентификаторы копий и дату-время их создания
 insert into @headers exec('restore headeronly from disk = '''+ @folderFull + '\' + @fileNameFull + '''');
 insert into @headers exec('restore headeronly from disk = '''+ @folderDiff + '\' + @fileNameDiff + '''');
 --select * from @headers;
@@ -126,27 +129,29 @@ select @DatabaseBackupLSN = DatabaseBackupLSN, @DiffBackupDateTime = BackupStart
 select @CheckpointLSN as CheckpointLSN, @DatabaseBackupLSN as DatabaseBackupLSN,  @FullBackupDateTime as FullBackupDateTime, 
        @DiffBackupDateTime as DiffBackupDateTime, @lastRestoredDateTime as lastRestoredDateTime;
 
-
+-- проверяем, восстанавливали ли полную копию. Если нет - восстанавливаем.
 IF @lastRestoredDateTime < @FullBackupDateTime
   BEGIN
-	-- ��������� ������ �����
+	-- Загружаем полный бэкап
 	SET @sql = 
 	N'RESTORE DATABASE [LGKOperational]
 	FROM DISK = N''' + @folderFull + '\' + @fileNameFull + ''' 
 	WITH  
 	FILE = 1,
-    NORECOVERY,
+        NORECOVERY,
 	REPLACE,
 	STATS = 5';
 
-    -- ������� � ��������� ���������� ����������
+    -- Выводим и выполняем полученную инструкцию
 	PRINT @sql;
 	EXEC sp_executesql @sql;
   END;
 
-  IF (@CheckpointLSN = @DatabaseBackupLSN AND @DiffBackupDateTime > @lastRestoredDateTime)
+-- Проверяем, соответствуют ли разностная копия и полная копия (иначе не восстановится, будет ошибка)
+-- И проверяем дату последнего восстановления - может, мы его уже восстановили прошлый раз
+IF (@CheckpointLSN = @DatabaseBackupLSN AND @DiffBackupDateTime > @lastRestoredDateTime)
     BEGIN
-	    -- ��������� ���������� ����� 
+	    -- Çàãðóæàåì ðàçíîñòíûé áýêàï 
 		set @sql = 
 			N'RESTORE DATABASE LGKOperational 
 			FROM DISK = ''' + @folderDiff + '\' + @fileNameDiff + '''
@@ -155,7 +160,7 @@ IF @lastRestoredDateTime < @FullBackupDateTime
 			NORECOVERY,
 			STATS = 5';
 			
-			-- ������� � ��������� ���������� ����������
+			-- Âûâîäèì è âûïîëíÿåì ïîëó÷åííóþ èíñòðóêöèþ
 			PRINT @sql;	
 			EXEC sp_executesql @sql
 
