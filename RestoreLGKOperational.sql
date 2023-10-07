@@ -49,7 +49,8 @@ SELECT
 FROM master.sys.databases d
 LEFT OUTER JOIN msdb.dbo.[restorehistory] r ON r.[destination_database_name] = d.Name
 )
-SELECT @lastRestoredDateTime = restore_date
+-- Отнимаем 3 минуты - 5-ти минутный бэкап может восстановиться чуть позже, чем сделается полный бэкап, и тогда полный не восстановится  	
+SELECT @lastRestoredDateTime = DATEADD(ss, -180, restore_date)
 FROM [LastRestores]
 Where
 [DatabaseName] = 'LGKOperational' and [RowNum] = 1;
